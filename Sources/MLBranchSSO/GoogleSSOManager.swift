@@ -13,17 +13,25 @@ public struct GoogleSSOManager: SSOAuthentication {
     
     @MainActor
     public func fetchSSOToken(with clientID: String , presenter: UIViewController) async throws -> String {
+        
         try await withCheckedThrowingContinuation { continuation in
-            let config = GIDConfiguration(clientID: clientID)
-            GIDSignIn.sharedInstance.signIn(with: config, presenting: presenter) { signInResult, error in
-                if let error {
+            let completionHandler: (GIDGoogleUser?, Error?) -> Void = { signInResult, error in
+                if let error = error {
                     return continuation.resume(throwing: error)
                 }
-                guard let signInResult = signInResult else { return }
-                guard let idToken = signInResult.authentication.idToken else { return }
-                continuation.resume(returning: idToken)
+                if let idToken = signInResult?.authentication.idToken {
+                    continuation.resume(returning: idToken)
+                }
+            }
+            
+            
+            if GIDSignIn.sharedInstance.hasPreviousSignIn() {
+                GIDSignIn.sharedInstance.restorePreviousSignIn(callback: completionHandler)
+            }else {
+                
+                let config = GIDConfiguration(clientID: clientID)
+                GIDSignIn.sharedInstance.signIn(with: config, presenting: presenter, callback: completionHandler)
             }
         }
     }
 }
-
